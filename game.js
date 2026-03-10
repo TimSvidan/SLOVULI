@@ -446,10 +446,12 @@ function initShareControls() {
 
   btnAgain.addEventListener("click", () => {
     resultModalEl.classList.remove("active");
-    // очищаем параметр word
-    const url = new URL(window.location.href);
-    url.searchParams.delete("word");
-    window.location.href = url.toString();
+    // сбрасываем состояние игры и возвращаемся к экрану загадывания слова
+    secretWord = null;
+    currentRow = 0;
+    currentCol = 0;
+    isGameOver = false;
+    setupMode();
   });
 
   btnShareResult.addEventListener("click", () => {
