@@ -33,7 +33,7 @@ const resultSubtitleEl = document.getElementById("result-subtitle");
 const btnAgain = document.getElementById("btn-again");
 const btnShareResult = document.getElementById("btn-share-result");
 
-// Безопасная base64 для кириллицы
+// Безопасная base64 для кириллицы (стандартная и URL-совместимая)
 function encodeBase64Unicode(str) {
   return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode("0x" + p1)));
 }
@@ -45,6 +45,22 @@ function decodeBase64Unicode(str) {
       .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
       .join("")
   );
+}
+
+// Вариант base64url, разрешённый Telegram для start_param
+function encodeBase64UrlUnicode(str) {
+  return encodeBase64Unicode(str)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function decodeBase64UrlUnicode(str) {
+  let b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4 !== 0) {
+    b64 += "=";
+  }
+  return decodeBase64Unicode(b64);
 }
 
 function normalizeWord(raw) {
@@ -315,12 +331,12 @@ function playMode(withSecret) {
 }
 
 function getSecretFromUrl() {
-  // 1) Если мини‑приложение запущено внутри Telegram — читаем start_param
+  // 1) Если мини‑приложение запущено внутри Telegram — читаем start_param (base64url)
   try {
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
       const startParam = window.Telegram.WebApp.initDataUnsafe.start_param;
       if (startParam) {
-        const decoded = decodeBase64Unicode(startParam);
+        const decoded = decodeBase64UrlUnicode(startParam);
         const normalized = normalizeWord(decoded);
         if (normalized.length === WORD_LENGTH) {
           return normalized;
@@ -331,12 +347,27 @@ function getSecretFromUrl() {
     console.error("Ошибка чтения start_param:", e);
   }
 
-  // 2) Фолбэк для запуска в обычном браузере: ?startapp=BASE64 или старый ?word=BASE64
+  // 2) Фолбэк для запуска в обычном браузере:
+  //    ?startapp=BASE64URL (новый формат) или ?word=BASE64 (старый формат)
   const params = new URLSearchParams(window.location.search);
-  const encoded = params.get("startapp") || params.get("word");
-  if (!encoded) return null;
+  const encodedStartApp = params.get("startapp");
+  const encodedWord = params.get("word");
+
   try {
-    const decoded = decodeBase64Unicode(encoded);
+    if (encodedStartApp) {
+      const decoded = decodeBase64UrlUnicode(encodedStartApp);
+      const normalized = normalizeWord(decoded);
+      if (normalized.length === WORD_LENGTH) {
+        return normalized;
+      }
+    }
+  } catch (e) {
+    console.error("Ошибка декодирования startapp:", e);
+  }
+
+  if (!encodedWord) return null;
+  try {
+    const decoded = decodeBase64Unicode(encodedWord);
     const normalized = normalizeWord(decoded);
     if (normalized.length === WORD_LENGTH) {
       return normalized;
@@ -348,7 +379,7 @@ function getSecretFromUrl() {
 }
 
 function buildBotLinkForSecret(secret) {
-  const encoded = encodeBase64Unicode(secret);
+  const encoded = encodeBase64UrlUnicode(secret);
   const base = "https://t.me/lapuli5bukv_bot/SLOVULI";
   const url = new URL(base);
   url.searchParams.set("startapp", encoded);
