@@ -315,8 +315,25 @@ function playMode(withSecret) {
 }
 
 function getSecretFromUrl() {
+  // 1) Если мини‑приложение запущено внутри Telegram — читаем start_param
+  try {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+      const startParam = window.Telegram.WebApp.initDataUnsafe.start_param;
+      if (startParam) {
+        const decoded = decodeBase64Unicode(startParam);
+        const normalized = normalizeWord(decoded);
+        if (normalized.length === WORD_LENGTH) {
+          return normalized;
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Ошибка чтения start_param:", e);
+  }
+
+  // 2) Фолбэк для запуска в обычном браузере: ?startapp=BASE64 или старый ?word=BASE64
   const params = new URLSearchParams(window.location.search);
-  const encoded = params.get("word");
+  const encoded = params.get("startapp") || params.get("word");
   if (!encoded) return null;
   try {
     const decoded = decodeBase64Unicode(encoded);
@@ -330,10 +347,11 @@ function getSecretFromUrl() {
   return null;
 }
 
-function buildLinkForSecret(secret) {
-  const url = new URL(window.location.href);
+function buildBotLinkForSecret(secret) {
   const encoded = encodeBase64Unicode(secret);
-  url.searchParams.set("word", encoded);
+  const base = "https://t.me/lapuli5bukv_bot/SLOVULI";
+  const url = new URL(base);
+  url.searchParams.set("startapp", encoded);
   return url.toString();
 }
 
@@ -363,7 +381,7 @@ function initShareControls() {
       return;
     }
 
-    const link = buildLinkForSecret(normalized);
+    const link = buildBotLinkForSecret(normalized);
     shareLinkEl.value = link;
     shareBlockEl.style.display = "block";
 
@@ -386,15 +404,9 @@ function initShareControls() {
     const link = shareLinkEl.value;
     if (!link) return;
 
-    const text = `Загадываю тебе слово в СЛОВУЛИ: ${link}`;
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.switchInlineQuery) {
-      window.Telegram.WebApp.switchInlineQuery(text, true);
-    } else {
-      copyToClipboard(link).then(
-        () => showToast("Ссылка скопирована, отправь её другу"),
-        () => showToast("Не получилось поделиться автоматически")
-      );
-    }
+    const text = "Угадай моё слово в Словули! 🎮";
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+    window.open(shareUrl, "_blank");
   });
 
   btnAgain.addEventListener("click", () => {
@@ -408,16 +420,9 @@ function initShareControls() {
   btnShareResult.addEventListener("click", () => {
     const baseLink = shareLinkEl.value || window.location.href;
     const resultText = `${resultTitleEl.textContent} — слово: ${secretWord.toUpperCase()}`;
-    const text = `${resultText}\n${baseLink}`;
-
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.switchInlineQuery) {
-      window.Telegram.WebApp.switchInlineQuery(text, true);
-    } else {
-      copyToClipboard(text).then(
-        () => showToast("Результат скопирован"),
-        () => showToast("Не удалось поделиться")
-      );
-    }
+    const text = `${resultText}\nУгадай моё слово в Словули! 🎮`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(baseLink)}&text=${encodeURIComponent(text)}`;
+    window.open(shareUrl, "_blank");
   });
 
   resultModalEl.addEventListener("click", (e) => {
