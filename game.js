@@ -117,14 +117,6 @@ function initKeyboard() {
     const rowEl = document.createElement("div");
     rowEl.className = "keyboard-row";
 
-    if (rowIndex === 2) {
-      const enterKey = document.createElement("button");
-      enterKey.className = "key wide";
-      enterKey.textContent = "Ввод";
-      enterKey.dataset.key = "enter";
-      rowEl.appendChild(enterKey);
-    }
-
     row.forEach((ch) => {
       const btn = document.createElement("button");
       btn.className = "key";
@@ -143,6 +135,18 @@ function initKeyboard() {
 
     keyboardEl.appendChild(rowEl);
   });
+
+  // Отдельная большая кнопка "Ввод" по центру снизу
+  const enterRow = document.createElement("div");
+  enterRow.className = "keyboard-row enter-row";
+
+  const enterMain = document.createElement("button");
+  enterMain.className = "key enter-main";
+  enterMain.textContent = "Ввод";
+  enterMain.dataset.key = "enter";
+
+  enterRow.appendChild(enterMain);
+  keyboardEl.appendChild(enterRow);
 
   keyboardEl.addEventListener("click", (e) => {
     const target = e.target;
@@ -449,9 +453,13 @@ function initShareControls() {
   });
 
   btnShareResult.addEventListener("click", () => {
-    const baseLink = shareLinkEl.value || window.location.href;
-    const resultText = `${resultTitleEl.textContent} — слово: ${secretWord.toUpperCase()}`;
-    const text = `${resultText}\nУгадай моё слово в Словули! 🎮`;
+    const baseLink = buildBotLinkForSecret(secretWord);
+    let text;
+    if (resultTitleEl.textContent.startsWith("Победа")) {
+      text = `Победа — слово: ${secretWord.toUpperCase()}`;
+    } else {
+      text = `Слово было: ${secretWord.toUpperCase()}`;
+    }
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(baseLink)}&text=${encodeURIComponent(text)}`;
     window.open(shareUrl, "_blank");
   });
