@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Русский Wordle для Telegram</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    :root {
+      --tg-bg: var(--tg-theme-bg-color, #ffffff);
+      --tg-text: var(--tg-theme-text-color, #000000);
+      --tg-hint: var(--tg-theme-hint-color, #a0a0a0);
+      --tg-button: var(--tg-theme-button-color, #3390ec);
+      --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
+
+      --tile-border-color: #d3d6da;
+      --tile-bg-empty: var(--tg-bg);
+      --tile-bg-correct: #6aaa64;
+      --tile-bg-present: #c9b458;
+      --tile-bg-absent: #787c7e;
+      --keyboard-bg: #d3d6da;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--tg-bg);
+      color: var(--tg-text);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .header {
+      text-align: center;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 18px;
+    }
+
+    .mode-screen {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .mode-screen.active {
+      display: flex;
+    }
+
+    .card {
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.02);
+    }
+
+    .label {
+      font-size: 13px;
+      color: var(--tg-hint);
+      margin-bottom: 4px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-row input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      font-size: 16px;
+      text-transform: uppercase;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      background: var(--tg-button);
+      color: var(--tg-button-text);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn.secondary {
+      background: rgba(0, 0, 0, 0.05);
+      color: var(--tg-text);
+    }
+
+    .btn.full {
+      width: 100%;
+      text-align: center;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--tg-hint);
+    }
+
+    .game-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+      justify-content: flex-start;
+      flex: 1;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-rows: repeat(5, 1fr);
+      gap: 4px;
+      margin-top: 4px;
+      width: 100%;
+      max-width: 360px;
+      aspect-ratio: 5 / 5;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+    }
+
+    .tile {
+      border: 2px solid var(--tile-border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-transform: uppercase;
+      font-weight: 700;
+      font-size: 20px;
+      background: var(--tile-bg-empty);
+      transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.3s ease;
+      transform-origin: center;
+      user-select: none;
+    }
+
+    .tile.flip {
+      animation: flip 0.4s ease forwards;
+    }
+
+    @keyframes flip {
+      0% {
+        transform: rotateX(0deg);
+      }
+      50% {
+        transform: rotateX(90deg);
+      }
+      100% {
+        transform: rotateX(0deg);
+      }
+    }
+
+    .tile.correct {
+      background-color: var(--tile-bg-correct);
+      border-color: var(--tile-bg-correct);
+      color: #fff;
+    }
+
+    .tile.present {
+      background-color: var(--tile-bg-present);
+      border-color: var(--tile-bg-present);
+      color: #fff;
+    }
+
+    .tile.absent {
+      background-color: var(--tile-bg-absent);
+      border-color: var(--tile-bg-absent);
+      color: #fff;
+    }
+
+    .keyboard {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: auto;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+
+    .keyboard-row {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .key {
+      flex: 1;
+      max-width: 32px;
+      padding: 10px 0;
+      border-radius: 6px;
+      background: var(--keyboard-bg);
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: uppercase;
+      user-select: none;
+    }
+
+    .key.wide {
+      flex: 1.5;
+      max-width: none;
+      font-size: 12px;
+    }
+
+    .key.correct {
+      background-color: var(--tile-bg-correct);
+      color: #fff;
+    }
+
+    .key.present {
+      background-color: var(--tile-bg-present);
+      color: #fff;
+    }
+
+    .key.absent {
+      background-color: var(--tile-bg-absent);
+      color: #fff;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      top: 12px;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 50;
+    }
+
+    .toast.visible {
+      opacity: 1;
+      transform: translate(-50%, 4px);
+    }
+
+    .result-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 40;
+    }
+
+    .result-modal.active {
+      display: flex;
+    }
+
+    .result-card {
+      background: var(--tg-bg);
+      color: var(--tg-text);
+      padding: 16px;
+      border-radius: 14px;
+      width: 100%;
+      max-width: 320px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .result-title {
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .result-word {
+      font-size: 16px;
+      text-transform: uppercase;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    @media (max-height: 600px) {
+      .grid {
+        max-width: 320px;
+      }
+
+      .tile {
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">СЛОВУЛИ</div>
+
+    <!-- Экран: загадать слово -->
+    <section id="setup-screen" class="mode-screen active">
+      <div class="card">
+        <div class="label">Загадай слово из 5 букв</div>
+        <div class="input-row">
+          <input
+            id="secret-input"
+            type="text"
+            maxlength="5"
+            autocomplete="off"
+            placeholder="например, МИРЫШ"
+          />
+          <button id="btn-generate-link" class="btn">Загадать другу</button>
+        </div>
+        <p class="hint">
+          Слово должно быть существительным из 5 русских букв. Сгенерируем ссылку и поделимся в Telegram.
+        </p>
+      </div>
+      <div class="card" id="share-block" style="display:none;">
+        <div class="label">Ссылка для друга</div>
+        <div class="input-row" style="margin-bottom:6px;">
+          <input id="share-link" type="text" readonly />
+          <button id="btn-copy-link" class="btn secondary">Копировать</button>
+        </div>
+        <button id="btn-tg-share" class="btn full">Поделиться в Telegram</button>
+      </div>
+    </section>
+
+    <!-- Экран: угадывание -->
+    <section id="play-screen" class="mode-screen">
+      <div class="game-container">
+        <div class="card" style="width:100%;">
+          <div class="label">Угадай слово за 5 попыток</div>
+          <p class="hint" id="play-hint"></p>
+        </div>
+        <div id="grid" class="grid"></div>
+        <div id="keyboard" class="keyboard"></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="result-modal" class="result-modal">
+    <div class="result-card">
+      <div class="result-title" id="result-title"></div>
+      <div class="result-word" id="result-word"></div>
+      <p class="hint" id="result-subtitle"></p>
+      <div class="result-actions">
+        <button id="btn-again" class="btn full secondary">Загадать своё слово</button>
+        <button id="btn-share-result" class="btn full">Поделиться</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="words.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
+
